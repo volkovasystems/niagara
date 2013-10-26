@@ -1,5 +1,15 @@
 {
-	"name":
-	"description":
-	""
+	"name": "niagara",
+	"description": "Project workflow engine.",
+	"author": "Richeve S. Bebedor",
+	"version": "0.1.0",
+	"dependencies": {
+		"async": "x.x.x",
+		"underscore": "x.x.x",
+		"string": "x.x.x",
+		"grunt": "x.x.x",
+		"grunt-contrib-clean": "x.x.x",
+		"grunt-contrib-copy": "x.x.x",
+		"grunt-contrib-watch": "x.x.x"
+	}
 }
