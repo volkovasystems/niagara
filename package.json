@@ -3,6 +3,10 @@
 	"description": "Project workflow engine.",
 	"author": "Richeve S. Bebedor",
 	"version": "0.1.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/volkovasystems/niagara.git"
+	},
 	"dependencies": {
 		"async": "x.x.x",
 		"underscore": "x.x.x",
