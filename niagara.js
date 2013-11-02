@@ -217,10 +217,113 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 			async.waterfall( [
 					function( callback ){
 						var error;
-						childprocess.exec( "cd " + repository
-							+ " && git submodule add https://github.com/volkovasystems/niagara.git niagara" );
-
+						var hasChanges;
+						var currentProcess = childprocess.exec( "cd " + repository + " && git status --porcelain" );
+						currentProcess.stdout.on( "data",
+							function( data ){
+								hasChanges = ( /[\s?MARDUC]{2}/ ).test( data.toString( ) );
+ 							} );
+						currentProcess.stderr.on( "data",
+							function( data ){
+								error = new Error( data.toString( ) );
+							} );
+						currentProcess.on( "close",
+							function( ){
+								callback( error, hasChanges );
+							} );
 					},
+
+					function( hasChanges, callback ){
+						//Stash anything uncommitted first.
+						if( hasChanges ){
+							//Create a random branch and stash changes there.
+							async.waterfall( [
+									function( callback ){
+										//Get the current branch name.
+										var error;
+										var branch;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git show-branch --current" );
+										currentProcess.stdout.on( "data",
+											function( data ){
+												branch = data.toString( ).match( /(?:\[)(.+)(?:\])/ )[ 1 ];
+				 							} );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error, branch );
+											} );
+									},
+
+									function( branch, callback ){
+										//Get the current branch hash.
+										var error;
+										var branchHash;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git show-branch --current --sha1-name" );
+										currentProcess.stdout.on( "data",
+											function( data ){
+												branchHash = data.toString( ).match( /(?:\[)(.+)(?:\])/ )[ 1 ];
+				 							} );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error, branch, branchHash );
+											} );
+									},
+
+									function( branch, branchHash, callback ){
+										//Stash the changes to the branch-branchHash
+										var branchName = "stash-" + branch + "-" + branchHash;
+										var error;
+										var currentProcess = = childprocess.exec( "cd " + repository 
+											+ " && git stash " + branchName );
+									}
+								],
+								function( ){
+
+								} );
+							var error;
+							var stashBranch;
+							
+						}else{
+							callback( );
+						}
+					},
+
+					function( callback ){
+						var error;
+						var currentProcess = childprocess.exec( "cd " + repository + " && git pull" );
+						currentProcess.stderr.on( "data",
+							function( data ){
+								error = new Error( data.toString( ) );
+							} );
+						currentProcess.on( "close",
+							function( ){
+								callback( error );
+							} );
+					},
+
+					function( callback ){
+						var error;
+						var currentProcess = childprocess.exec( "cd " + repository
+							+ " && git submodule add https://github.com/volkovasystems/niagara.git niagara" );
+						currentProcess.stderr.on( "data",
+							function( data ){
+								error = new Error( data.toString( ) );
+							} );
+						currentProcess.on( "close",
+							function( ){
+								callback( error );
+							} );
+					},
+
 					function( ){
 
 					}
