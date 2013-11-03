@@ -216,12 +216,13 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 		function( repository, callback ){
 			async.waterfall( [
 					function( callback ){
+						//Check if there are changes.
 						var error;
 						var hasChanges;
 						var currentProcess = childprocess.exec( "cd " + repository + " && git status --porcelain" );
 						currentProcess.stdout.on( "data",
 							function( data ){
-								hasChanges = ( /[\s?MARDUC]{2}/ ).test( data.toString( ) );
+								hasChanges = hasChanges || ( /[\s?MARDUC]{2}/ ).test( data.toString( ) );
  							} );
 						currentProcess.stderr.on( "data",
 							function( data ){
@@ -236,8 +237,46 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 					function( hasChanges, callback ){
 						//Stash anything uncommitted first.
 						if( hasChanges ){
-							//Create a random branch and stash changes there.
+							//Create a random branch and stash-commit changes there.
 							async.waterfall( [
+									function( callback ){
+										//Check if there are other stashes abort if there are.
+										var hasStashes;
+										var error;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git stash list" );
+										currentProcess.stdout.on( "data",
+											function( data ){
+												hasStashes = hasStashes || ( /stash@\{\d+\}/ ).test( data.toString( ) );
+											} );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												if( hasStashes ){
+													error = new Error( "conflicting stash" );
+												}
+												callback( error );
+											} );
+									},
+
+									function( callback ){
+										//Create a stash
+										var error;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git stash" );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error );
+											} );
+									},
+
 									function( callback ){
 										//Get the current branch name.
 										var error;
@@ -279,25 +318,93 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 									},
 
 									function( branch, branchHash, callback ){
-										//Stash the changes to the branch-branchHash
+										//Create a branch then transfer changes to the branch-branchHash
 										var branchName = "stash-" + branch + "-" + branchHash;
 										var error;
-										var currentProcess = = childprocess.exec( "cd " + repository 
-											+ " && git stash " + branchName );
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git stash branch " + branchName );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error, branchName, previousBranch );
+											} );
+									},
+
+									function( branchName, previousBranch, callback ){
+										//Add the changes to that branch.
+										var error;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git add --all" );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error, branchName, previousBranch );
+											} );
+									},
+
+									function( branchName, previousBranch, callback ){
+										//Commit the changes to that branch.
+										var error;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git commit -m \"stash commit on " + branchName + "\"" );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error, previousBranch );
+											} );
+
+										/*
+											After we commit the changes to that branch
+												we leave it for the user to merge it or not.
+											But this will only happen in rare cases.
+											Niagara should be added when a project is created.
+											This is ideal. So this scenario will only happen
+												if niagara is added in the middle of the workflow
+												of the project.
+										*/
+									},
+
+									function( previousBranch, callback ){
+										//Checkout previous branch.
+										var error;
+										var currentProcess = childprocess.exec( "cd " + repository 
+											+ " && git checkout " + previousBranch );
+										currentProcess.stderr.on( "data",
+											function( data ){
+												error = new Error( data.toString( ) );
+											} );
+										currentProcess.on( "close",
+											function( ){
+												callback( error );
+											} );
+
+										/*
+											This is done because 'git stash branch'
+												checkout that newly created branch
+												so we really have to go back to the original branch
+												to add the sub module for niagara.
+										*/
 									}
 								],
-								function( ){
-
+								function( error ){
+									callback( error );
 								} );
-							var error;
-							var stashBranch;
-							
 						}else{
 							callback( );
 						}
 					},
 
 					function( callback ){
+						//Do a git pull if there is anything to pull.
 						var error;
 						var currentProcess = childprocess.exec( "cd " + repository + " && git pull" );
 						currentProcess.stderr.on( "data",
@@ -311,6 +418,7 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 					},
 
 					function( callback ){
+						//Add niagara sub module.
 						var error;
 						var currentProcess = childprocess.exec( "cd " + repository
 							+ " && git submodule add https://github.com/volkovasystems/niagara.git niagara" );
@@ -324,8 +432,16 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 							} );
 					},
 
-					function( ){
+					function( callback ){
+						//Add any current changes.
+					},
 
+					function( callback ){
+						//Commit current changes.
+					},
+
+					function( callback ){
+						//Push current changes.
 					}
 				] );
 		},
