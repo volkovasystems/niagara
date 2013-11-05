@@ -5,6 +5,164 @@ var async = require( "async" );
 var _ = require( "underscore" );
 var S = require( "string" );
 
+/*
+	Niagara 
+
+	This project aims to automate large modularize project workflows.
+
+	Assuming that this large project only has 1 repository account in github,
+		we can have the user to logged only once.
+
+	Niagara has a console command 'niagara' or 'ngra'.
+
+	The base workflow for initialization is to construct a base project
+		architecture.
+
+	large-project-root-folder/
+		-> repo-A-folder/
+		-> repo-B-folder/
+		-> repo-C-folder/
+
+	And clone the niagara repository to large-project-root-folder
+
+	large-project-root-folder/
+		-> repo-A-folder/
+		-> repo-B-folder/
+		-> repo-C-folder/
+		-> niagara/
+
+	Inside niagara, before launching the niagara command,
+		configure the spring.json file.
+
+	The spring.json file contains an array structure containing
+		configuration for any repository in your list.
+		
+		[
+			{
+				"repository": "your repo name",
+				"username": "your user name",
+				"password": "your password"
+			}
+			...
+		]
+
+		If multiple remote version control system is supported
+			this will be extended to include 'type' and 'option'
+			for specific initialization.
+
+		* Note that these configuration files are automatically ignored.
+
+	Once spring.json is configured, type in 'niagara falls'
+
+	This will boot the niagara and started inspecting each repository.
+
+	large-project-root-folder/
+		-> repo-A-folder/
+			-> niagara/
+			-> waterfall.json
+		-> repo-B-folder/
+			-> niagara/
+			-> waterfall.json
+		-> repo-C-folder/
+			-> niagara/
+			-> waterfall.json
+		-> niagara/
+			-> waterfall.json
+			-> spring.json
+
+	Each repository will be added with niagara sub module and waterfall.json
+
+	waterfall.json is niagara's main configuration file.
+
+	The niagara engine will only read the waterfall.json file aside from other configuration
+		file like spring.json and river.json.
+
+	Niagara is closely tied to grunt, bower, npm, git and other javascript frameworks.
+
+	Niagara features:
+		1. Launch test workflows.
+			The developer has to boot niagara then the niagara engine will always
+			listen to river.json (which is a configuration for all engines)
+			Changes to the river.json affects the control flow of niagara.
+			If river.json is empty or non-existent then it will default to base control flow.
+			In river.json a 'test' entry is added that will point to the list of
+				test files to be executed.
+			If this is existing then niagara will start adding the test flow in the list of
+				workflows.
+
+		2. Auto deploy.
+			Niagara has command like 'niagara evaporate' which will auto deploy
+				the niagara binded project to the public making your project accessible to everyone
+				This will convert the repository in production mode.
+			Add an entry for 'deploy' should be added.
+			
+			"deploy": {
+				"type": "production|development",
+				"branch": "branch name of project's deployment",
+				"url": "url to launch after deployment",
+				"test": true|false, //defaults to true and this is optional.
+				"documentation": true|false, //defaults to false and this is optional
+				""
+			}
+
+			If documentation is true, it will launch the documentation bundled with the
+				project. Just put a 'documentation' entry in the river.json
+
+			Auto deploy has strong ties with openshift, google app engine, and appfog.
+
+			The usual deployment strategy is to update the remote git repo,
+				it is the task of the servers to update themselves through the remote
+				git repo.
+
+		3. Synchronize flows.
+			The niagara engine is always live on boot. Put an entry on
+				your start up program list to boot niagara on system starts.
+
+			Niagara will always fetch-prune and pull latest changes to the remote repository
+				but it will not merge them. Instead, it will create a branch
+				for you to merge unless the message for the current pulled index
+				contains a '@force-flow' command.
+
+			Immediate pull-merge should contain an override priority value in the message.
+				This priority value is stated in the river.json through the engines.
+
+			If the priority value exceeds the required priority value on the engine
+				it will automatically merge the changes.
+
+			Note that niagara contains a list of access hash to be appended to the message
+				command.
+
+			Example:
+				@force-flow:gjdfgklsdf4454343tsmgdkldf
+
+				@priority-override:120
+				@force-flow:gjdfgklsdf4454343tsmgdkldf				
+
+		4. Integrated dashboard.
+			The niagara will host a remote dashboard and a local dashboard for your
+				projects.
+
+			The dashboard enables you to share and collaborate project workflows
+				and improve software development as a team.
+
+			The dashboard aims to singularize the workflow of the team by providing
+				status and updates in real time.
+				* What each member is on a code task
+				* What each member is experiencing per code task.
+				* The duration each member per code task.
+				* Updates of the code task if it is running smoothly or having errors.
+
+			The dashboard is basically an independent application that only focuses
+				on the updates that each member is posting to the niagara server.
+
+			So if a member runs a test, the project manager knows, or if the test fails on
+				the code task this member is testing, the project manager is direclty notified.
+				If the code task is difficult the project manager is notified (which is based
+				on the given duration)
+
+			The dashboard has an integrated collaborating tools that speeds up development.
+*/
+
 var checkPrimaryDependencies = function checkPrimaryDependencies( ){
 	var primaryDependencyList = [
 		{
@@ -148,8 +306,8 @@ var checkSiblingRepository = function checkSiblingRepository( callback ){
 						return;
 					}
 					//We will check for the waterfall.json file,
-					//	the .git folder and the niagara repository folder
-					//We will get the folder that fails any of these conditions.
+					//	if this is a git repo and if there is a niagara sub module.
+					//We will get the path that fails any of these conditions.
 					async.map( directoryList,
 						function( directoryPath, callback ){
 							async.parallel( [
@@ -370,6 +528,11 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 											This is ideal. So this scenario will only happen
 												if niagara is added in the middle of the workflow
 												of the project.
+
+											TOOD:
+											I'm thinking of creating a tag to this commit
+												instead of having the user a branch to merge.
+												Because the branch may change but the tag cannot.
 										*/
 									},
 
@@ -434,14 +597,61 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 
 					function( callback ){
 						//Add any current changes.
+						var error;
+						var currentProcess = childprocess.exec( "cd " + repository 
+							+ " && git add --all" );
+						currentProcess.stderr.on( "data",
+							function( data ){
+								error = new Error( data.toString( ) );
+							} );
+						currentProcess.on( "close",
+							function( ){
+								callback( error );
+							} );
 					},
 
 					function( callback ){
 						//Commit current changes.
+						var error;
+						var currentProcess = childprocess.exec( "cd " + repository 
+							+ " && git commit -m \"added niagara sub module\"" );
+						currentProcess.stderr.on( "data",
+							function( data ){
+								error = new Error( data.toString( ) );
+							} );
+						currentProcess.on( "close",
+							function( ){
+								callback( error, previousBranch );
+							} );
 					},
 
 					function( callback ){
 						//Push current changes.
+						var error;
+						var currentProcess = childprocess.exec( "cd " + repository 
+							+ " && git push --repo https://volkovasystems:Enigmata123@github.com/volkovasystems/" );
+						currentProcess.stderr.on( "data",
+							function( data ){
+								error = new Error( data.toString( ) );
+							} );
+						currentProcess.on( "close",
+							function( ){
+								callback( error, previousBranch );
+							} );
+					},
+
+					function( callback ){
+						//Write the waterfall.json
+						/*
+							{
+								"dry": true|false, //do not include dry waterfall.json
+								"flowing": true|false, //booted correctly.
+								"clogged": true|false, //encountered an error.
+								"repository": "name of repository",
+								"repositoryUrl": "url of repository",
+								"type": "root" | "child"
+							}
+						*/
 					}
 				] );
 		},
@@ -449,6 +659,12 @@ var integrateNiagara = function integrateNiagara( repositoryList, callback ){
 
 		} );
 };
+
+var fireNiagaraServer = function fireNiagaraServer( ){
+
+};
+
+
 
 var boot = function boot( ){
 
