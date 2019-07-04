@@ -1,19 +1,25 @@
 {
-	"name": "niagara",
-	"description": "Project workflow engine.",
-	"author": "Richeve S. Bebedor",
-	"version": "0.1.0",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/volkovasystems/niagara.git"
-	},
-	"dependencies": {
-		"async": "x.x.x",
-		"underscore": "x.x.x",
-		"string": "x.x.x",
-		"grunt": "x.x.x",
-		"grunt-contrib-clean": "x.x.x",
-		"grunt-contrib-copy": "x.x.x",
-		"grunt-contrib-watch": "x.x.x"
-	}
+  "name": "niagara",
+  "description": "Project workflow engine.",
+  "author": "Richeve S. Bebedor",
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/volkovasystems/niagara.git"
+  },
+  "dependencies": {
+    "async": "x.x.x",
+    "underscore": "x.x.x",
+    "string": "x.x.x",
+    "grunt": "x.x.x",
+    "grunt-contrib-clean": "x.x.x",
+    "grunt-contrib-copy": "x.x.x",
+    "grunt-contrib-watch": "x.x.x",
+    "snyk": "^1.189.0"
+  },
+  "scripts": {
+    "snyk-protect": "snyk protect",
+    "prepublish": "npm run snyk-protect"
+  },
+  "snyk": true
 }
